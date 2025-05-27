@@ -1005,8 +1005,37 @@ def asin_from_link(link: str) -> str:
         return ""
 
 # ───────── Selenium otimizado ────────────────────────────────────────────────────
+import platform
+
 SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
-CHROMEDRIVER = SCRIPT_DIR / "chromedriver-win32" / "chromedriver.exe"  # Usando o novo ChromeDriver
+
+# Detectar sistema operacional e configurar ChromeDriver apropriado
+def get_chromedriver_path():
+    system = platform.system().lower()
+    
+    if system == "windows":
+        # Windows
+        chromedriver_path = SCRIPT_DIR / "chromedriver-win32" / "chromedriver.exe"
+    elif system == "linux":
+        # Linux
+        chromedriver_path = SCRIPT_DIR / "chromedriver-linux64" / "chromedriver"
+    elif system == "darwin":
+        # macOS
+        chromedriver_path = SCRIPT_DIR / "chromedriver-mac64" / "chromedriver"
+    else:
+        # Fallback - tentar usar ChromeDriverManager
+        print(f"⚠️ Sistema operacional não reconhecido: {system}. Usando ChromeDriverManager...")
+        return None
+    
+    if chromedriver_path.exists():
+        print(f"✅ ChromeDriver encontrado: {chromedriver_path}")
+        return str(chromedriver_path)
+    else:
+        print(f"❌ ChromeDriver não encontrado em: {chromedriver_path}")
+        print(f"💡 Sistema detectado: {system}")
+        return None
+
+CHROMEDRIVER = get_chromedriver_path()
 
 opts = webdriver.ChromeOptions()
 opts.page_load_strategy = "eager"
@@ -1918,15 +1947,22 @@ def process_category(cat):
     
     driver = None
     try:
-        # Verificar se o ChromeDriver existe
-        if not os.path.exists(CHROMEDRIVER):
-            print(f"\n❌ ChromeDriver não encontrado em {CHROMEDRIVER}")
-            return
-            
-        print(f"\n🔧 Iniciando Chrome para categoria {cat['name']} usando {CHROMEDRIVER}")
-            
-        # Usar o ChromeDriver local
-        service = Service(executable_path=str(CHROMEDRIVER))
+        # Tentar usar ChromeDriver local primeiro, depois ChromeDriverManager
+        service = None
+        
+        if CHROMEDRIVER and os.path.exists(CHROMEDRIVER):
+            print(f"\n🔧 Iniciando Chrome para categoria {cat['name']} usando ChromeDriver local: {CHROMEDRIVER}")
+            service = Service(executable_path=str(CHROMEDRIVER))
+        else:
+            print(f"\n🔧 ChromeDriver local não encontrado. Usando ChromeDriverManager para categoria {cat['name']}...")
+            try:
+                # Usar ChromeDriverManager para baixar automaticamente
+                service = Service(ChromeDriverManager().install())
+                print(f"✅ ChromeDriver baixado automaticamente pelo ChromeDriverManager")
+            except Exception as e:
+                print(f"\n❌ Erro ao configurar ChromeDriverManager para {cat['name']}: {str(e)}")
+                return
+        
         try:
             driver = webdriver.Chrome(service=service, options=options)
             # Definir um timeout padrão para todas as operações
